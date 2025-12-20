@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LeetCode Trainer</title>
+    <!-- Modern Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Background Ambient Glow -->
+    <div class="glow-bg"></div>
+
+    <div class="app-container">
+      <div class="header">
+        <div class="select-wrapper">
+          <select id="mode">
+            <option>NeetCode 150</option>
+          </select>
+          <!-- Custom Arrow Icon -->
+          <svg
+            class="select-icon"
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loading" class="card center-content">
+        <div class="spinner"></div>
+        <h2>Fetching next challenge...</h2>
+      </div>
+
+      <!-- Nothing Left State -->
+      <div id="empty" class="card center-content" style="display: none">
+        <div class="icon-circle">🎉</div>
+        <h2>All caught up!</h2>
+        <p>
+          No unlocked problems available. Time to rest or review your notes.
+        </p>
+      </div>
+
+      <!-- Active Problem Card -->
+      <div class="card" id="cardContainer" style="display: none">
+        <div class="problem-header">
+          <span id="diffBadge" class="badge medium">Medium</span>
+          <h2 id="probTitle">Loading...</h2>
+        </div>
+
+        <a id="probLink" href="#" class="btn-primary-outline">
+          <span>Open Problem</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+            />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+        </a>
+
+        <div class="report-form">
+          <div class="form-title">Session Log</div>
+
+          <div class="input-wrapper">
+            <label for="timeInput">Time Spent (min)</label>
+            <input type="number" id="timeInput" placeholder="0" min="0" />
+          </div>
+
+          <div class="toggles-container">
+            <!-- Custom Checkbox Tile 1 -->
+            <label class="action-tile">
+              <input type="checkbox" id="checkSolved" />
+              <div class="tile-content">
+                <span class="tile-icon">✅</span>
+                <span class="tile-text">Solved</span>
+              </div>
+            </label>
+
+            <!-- Custom Checkbox Tile 2 -->
+            <label class="action-tile">
+              <input type="checkbox" id="checkSolution" />
+              <div class="tile-content">
+                <span class="tile-icon">👀</span>
+                <span class="tile-text">Viewed Hints</span>
+              </div>
+            </label>
+          </div>
+
+          <button class="btn-submit" id="submitBtn">
+            <span>Log & Next Problem</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KEEPING YOUR ORIGINAL SCRIPT LOGIC INTACT -->
+    <script>
+      const {invoke} = window.__TAURI__.core;
+      let currentProblemId = null;
+
+      async function loadNextProblem() {
+        document.getElementById("loading").style.display = "flex"; // Changed to flex for centering
+        document.getElementById("cardContainer").style.display = "none";
+        document.getElementById("empty").style.display = "none";
+
+        try {
+          const problem = await invoke("get_next_problem");
+
+          if (problem) {
+            currentProblemId = problem.id;
+            document.getElementById(
+              "probTitle"
+            ).innerText = `${problem.id}. ${problem.title}`;
+
+            const linkBtn = document.getElementById("probLink");
+            linkBtn.dataset.url = problem.url;
+            linkBtn.removeAttribute("href");
+
+            const badge = document.getElementById("diffBadge");
+            badge.innerText = problem.difficulty;
+            badge.className = `badge ${problem.difficulty.toLowerCase()}`;
+
+            document.getElementById("timeInput").value = "";
+            document.getElementById("checkSolved").checked = false;
+            document.getElementById("checkSolution").checked = false;
+
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("cardContainer").style.display = "flex";
+          } else {
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("empty").style.display = "flex"; // Changed to flex
+          }
+        } catch (e) {
+          alert("Error loading problem: " + e);
+        }
+      }
+
+      async function submitLog() {
+        const timeVal = document.getElementById("timeInput").value;
+        const solved = document.getElementById("checkSolved").checked;
+        const readSol = document.getElementById("checkSolution").checked;
+        const btn = document.getElementById("submitBtn");
+        const btnText = btn.querySelector("span");
+
+        if (!timeVal) {
+          document.getElementById("timeInput").focus();
+          // Small shake animation could go here
+          return;
+        }
+
+        btnText.innerText = "Saving...";
+        btn.disabled = true;
+
+        const payload = {
+          problem_id: currentProblemId,
+          time_minutes: parseFloat(timeVal),
+          solved: solved,
+          read_solution: readSol,
+        };
+
+        try {
+          await invoke("submit_attempt", {log: payload});
+
+          btnText.innerText = "Saved!";
+          btn.classList.add("success");
+
+          setTimeout(() => {
+            btnText.innerText = "Log & Next Problem";
+            btn.classList.remove("success");
+            btn.disabled = false;
+            loadNextProblem();
+          }, 800);
+        } catch (e) {
+          alert("Error saving: " + e);
+          btn.disabled = false;
+        }
+      }
+
+      document.getElementById("submitBtn").addEventListener("click", submitLog);
+      loadNextProblem();
+
+      document
+        .getElementById("probLink")
+        .addEventListener("click", async (e) => {
+          e.preventDefault();
+          const url = e.target.closest("a").dataset.url;
+          if (url) {
+            try {
+              await invoke("open_external_url", {url: url});
+            } catch (err) {
+              alert("Failed to open browser: " + err);
+            }
+          }
+        });
+    </script>
+  </body>
+</html>
