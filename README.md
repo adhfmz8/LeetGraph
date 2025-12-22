@@ -23,40 +23,34 @@ Currently, there are no pre-built binaries available. You can build the applicat
 2. **Node.js:** Install via [nodejs.org](https://nodejs.org/).
 3. **OS Dependencies:** Follow the [Tauri Prerequisites Guide](https://tauri.app/v1/guides/getting-started/prerequisites) for your specific OS (Windows, macOS, or Linux).
 
-### Installation Steps
+## Installation
 
-1. **Clone the repository:**
+**Note on Security Warnings:**
+This application is open-source and free, so it is not digitally signed with a paid certificate (which costs hundreds of dollars/year). Your operating system will flag it as "Unknown" or "Unsafe." Here is how to open it:
 
-    ```bash
-    git clone https://github.com/adhfmz8/LeetGraph.git
-    cd LeetGraph
-    ```
+### Windows (.exe)
 
-2. **Install frontend dependencies:**
+1. Download the `.exe` file.
+2. When you run it, you will see a blue "Windows protected your PC" popup.
+3. Click **"More info"**.
+4. Click **"Run anyway"**.
 
-    ```bash
-    npm install
-    # or
-    yarn install
-    ```
+### macOS (.dmg)
 
-Optional: **Run in Development Mode:**
-    To test the app locally with hot-reloading:
+1. Download and install the `.dmg` file.
+2. Try to open the app. You will see a warning: *"App cannot be opened because the developer cannot be verified."*
+3. Click **Cancel**.
+4. Open **System Settings** → **Privacy & Security**.
+5. Scroll down to the Security section and you will see "LeetCode Trainer was blocked..."
+6. Click **"Open Anyway"**.
+    * *Alternative:* Right-click the app icon -> Select **Open** -> Click **Open** in the dialog.
 
-    ```bash
-    npm run tauri dev
-    ```
+### Linux (.AppImage)
 
-3. **Build Release Artifact:**
-    To create an optimized executable for your machine:
-
-    ```bash
-    npm run tauri build
-    ```
-
-    * **Windows:** The `.exe` will be in `src-tauri/target/release/bundle/msi/` or `nsis/`.
-    * **Mac:** The `.app` or `.dmg` will be in `src-tauri/target/release/bundle/macos/` or `dmg/`.
-    * **Linux:** Look in `src-tauri/target/release/bundle/deb/` or `appimage/`.
+1. Download the `.AppImage` file.
+2. Right-click the file → **Properties** → **Permissions**.
+3. Check **"Allow executing file as program"**.
+4. Double-click to run.
 
 ## How to Use
 
