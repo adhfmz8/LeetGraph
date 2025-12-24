@@ -63,6 +63,7 @@ pub struct ProblemView {
     pub url: String,
     pub difficulty: String,
     pub track_name: String,
+    pub skills: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]

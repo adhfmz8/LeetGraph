@@ -13,7 +13,7 @@ use rusqlite::Connection;
 use std::fs;
 use tauri::{Manager, State};
 
-use log::{debug, error, info};
+use log::info;
 
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {

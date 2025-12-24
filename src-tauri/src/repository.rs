@@ -48,24 +48,34 @@ pub fn resolve_parent_id(conn: &Connection, problem_id: i64) -> Result<(i64, boo
 
 /// Tries to find a random alternative for a given parent problem ID.
 pub fn get_random_alternative(conn: &Connection, parent_id: i64) -> Result<Option<ProblemView>> {
-    conn.query_row(
-        "SELECT id, title, difficulty, url 
+    let result = conn
+        .query_row(
+            "SELECT id, title, difficulty, url 
          FROM alternatives 
          WHERE parent_id = ? 
          ORDER BY RANDOM() 
          LIMIT 1",
-        [parent_id],
-        |row| {
-            Ok(ProblemView {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                difficulty: row.get(2)?,
-                url: row.get(3)?,
-                track_name: "Concept Review".to_string(), // UI indicator
-            })
-        },
-    )
-    .optional()
+            [parent_id],
+            |row| {
+                Ok(ProblemView {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    difficulty: row.get(2)?,
+                    url: row.get(3)?,
+                    track_name: "🔀 Concept Variation".to_string(),
+                    skills: Vec::new(),
+                })
+            },
+        )
+        .optional()?;
+
+    if let Some(mut p) = result {
+        // Alternatives might not have direct skill mappings in your DB design,
+        // fallback to parent skills if needed, or if alternatives share skills:
+        p.skills = get_skill_names_for_problem(conn, parent_id).unwrap_or_default();
+        return Ok(Some(p));
+    }
+    Ok(None)
 }
 
 /// Updates the mastery state for a skill.
@@ -116,6 +126,21 @@ pub fn save_problem_repetition_state(
         params![state.problem_id, state.ease_factor, state.interval_days, state.next_review_ts]
     )?;
     Ok(())
+}
+
+pub fn get_skill_names_for_problem(conn: &Connection, problem_id: i64) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.name 
+         FROM skills s
+         JOIN problem_skills ps ON s.id = ps.skill_id
+         WHERE ps.problem_id = ?",
+    )?;
+
+    let skills = stmt
+        .query_map([problem_id], |row| row.get(0))?
+        .collect::<Result<Vec<String>, _>>()?;
+
+    Ok(skills)
 }
 
 /// Records a raw attempt log.
@@ -173,20 +198,25 @@ pub fn find_due_review(conn: &Connection, now_ts: i64) -> Result<Option<ProblemV
          LIMIT 1",
             [now_ts],
             |row| {
+                let id: i64 = row.get(0)?;
                 Ok(ProblemView {
-                    id: row.get(0)?,
+                    id,
                     title: row.get(1)?,
                     difficulty: row.get(2)?,
                     url: row.get(3)?,
-                    track_name: "Review".to_string(),
+                    track_name: "🧠 Spaced Review".to_string(), // Updated Label
+                    skills: Vec::new(),                         // Placeholder, filled below
                 })
             },
         )
-        .optional();
-    if let Ok(Some(ref p)) = result {
+        .optional()?;
+
+    if let Some(mut p) = result {
+        p.skills = get_skill_names_for_problem(conn, p.id).unwrap_or_default();
         debug!("[DB] Found due review: {}", p.title);
+        return Ok(Some(p));
     }
-    result
+    Ok(None)
 }
 
 pub fn get_unlocked_skills(conn: &Connection) -> Result<Vec<i64>> {
@@ -233,6 +263,7 @@ pub fn find_new_problem_for_skills(
 
     let placeholders = skill_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
 
+    // Note: We use GROUP BY because a problem might map to multiple unlocked skills.
     let sql = format!(
         "SELECT p.id, p.title, p.difficulty, p.url
          FROM problems p
@@ -247,10 +278,10 @@ pub fn find_new_problem_for_skills(
             SELECT id FROM alternatives 
             WHERE parent_id IN (SELECT problem_id FROM problem_state)
          )
-         -- Exclude if the problem IS the parent of a tracked alternative (Bi-directional safety)
+         -- Exclude if the problem IS the parent of a tracked alternative
          AND p.id NOT IN (
             SELECT parent_id FROM alternatives
-            WHERE id IN (SELECT problem_id FROM attempts) -- Heuristic: if we attempted an alt, parent is done
+            WHERE id IN (SELECT problem_id FROM attempts)
          )
          GROUP BY p.id
          ORDER BY
@@ -271,16 +302,24 @@ pub fn find_new_problem_for_skills(
         params.push(Box::new(*id));
     }
 
-    conn.query_row(&sql, rusqlite::params_from_iter(params.iter()), |row| {
-        Ok(ProblemView {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            difficulty: row.get(2)?,
-            url: row.get(3)?,
-            track_name: "New Discovery".to_string(),
+    let result = conn
+        .query_row(&sql, rusqlite::params_from_iter(params.iter()), |row| {
+            Ok(ProblemView {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                difficulty: row.get(2)?,
+                url: row.get(3)?,
+                track_name: "✨ New Discovery".to_string(),
+                skills: Vec::new(),
+            })
         })
-    })
-    .optional()
+        .optional()?;
+
+    if let Some(mut p) = result {
+        p.skills = get_skill_names_for_problem(conn, p.id).unwrap_or_default();
+        return Ok(Some(p));
+    }
+    Ok(None)
 }
 
 pub fn find_cram_problem(
@@ -292,9 +331,11 @@ pub fn find_cram_problem(
         return Ok(None);
     }
 
-    // Dynamic SQL for IN clause
     let placeholders = skill_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
 
+    // Note: We do NOT group by here intentionally.
+    // If a problem uses a low-mastery skill, we want that specific row to bubble up
+    // via the ORDER BY mastery clause.
     let sql = format!(
         "SELECT p.id, p.title, p.difficulty, p.url
          FROM problems p
@@ -302,7 +343,7 @@ pub fn find_cram_problem(
          JOIN problem_skills ps ON p.id = ps.problem_id
          JOIN skill_state ss ON ps.skill_id = ss.skill_id
          WHERE tp.track_id = ?
-         AND ps.skill_id IN ({}) -- Enforce Unlocked Skills
+         AND ps.skill_id IN ({}) 
          ORDER BY ss.mastery ASC, RANDOM()
          LIMIT 1",
         placeholders
@@ -314,14 +355,22 @@ pub fn find_cram_problem(
         params.push(Box::new(*id));
     }
 
-    conn.query_row(&sql, rusqlite::params_from_iter(params.iter()), |row| {
-        Ok(ProblemView {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            difficulty: row.get(2)?,
-            url: row.get(3)?,
-            track_name: "Cram Mode (Grind)".to_string(),
+    let result = conn
+        .query_row(&sql, rusqlite::params_from_iter(params.iter()), |row| {
+            Ok(ProblemView {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                difficulty: row.get(2)?,
+                url: row.get(3)?,
+                track_name: "🔥 Cram Mode".to_string(),
+                skills: Vec::new(),
+            })
         })
-    })
-    .optional()
+        .optional()?;
+
+    if let Some(mut p) = result {
+        p.skills = get_skill_names_for_problem(conn, p.id).unwrap_or_default();
+        return Ok(Some(p));
+    }
+    Ok(None)
 }

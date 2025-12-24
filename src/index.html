@@ -4,120 +4,452 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LeetCode Trainer</title>
-    <!-- Modern Font: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <style>
+      :root {
+        --bg-app: #0f1115;
+        --bg-card: #161b22;
+        --bg-card-hover: #1c2128;
+        --border-subtle: #30363d;
+        --accent-primary: #6366f1; /* Indigo */
+        --accent-glow: rgba(99, 102, 241, 0.4);
+        --text-main: #e6edf3;
+        --text-muted: #8b949e;
+        --success: #2ea043;
+        --warning: #db6d28;
+        --danger: #da3633;
+        --easy: #238636;
+        --medium: #d29922;
+        --hard: #f85149;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Plus Jakarta Sans", sans-serif;
+        background-color: var(--bg-app);
+        background-image: radial-gradient(
+          circle at 50% 0%,
+          rgba(99, 102, 241, 0.15) 0%,
+          transparent 50%
+        );
+        color: var(--text-main);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+      }
+
+      /* --- Utility & Animation --- */
+      .fade-in {
+        animation: fadeIn 0.4s ease-out;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      /* --- Header --- */
+      .app-header {
+        width: 100%;
+        max-width: 550px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 1.25rem;
+        letter-spacing: -0.02em;
+        background: linear-gradient(90deg, #fff, #a5b4fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      select {
+        background: var(--bg-card);
+        color: var(--text-main);
+        border: 1px solid var(--border-subtle);
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.85rem;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      select:hover {
+        border-color: var(--text-muted);
+      }
+
+      /* --- Main Card --- */
+      .main-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 24px;
+        width: 100%;
+        max-width: 550px;
+        padding: 32px;
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* --- Loading State --- */
+      .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 250px;
+        gap: 16px;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border-subtle);
+        border-top-color: var(--accent-primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* --- Problem Content --- */
+      .meta-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+
+      .track-badge {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-subtle);
+        padding: 6px 10px;
+        border-radius: 6px;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* Ensure the icon stands out slightly */
+      .track-badge #trackIcon {
+        font-size: 0.9rem;
+        line-height: 1;
+      }
+
+      .difficulty-badge {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 6px 10px;
+        border-radius: 6px;
+        text-transform: capitalize;
+      }
+      .difficulty-badge.easy {
+        background: rgba(46, 160, 67, 0.15);
+        color: #7ee787;
+        border: 1px solid rgba(46, 160, 67, 0.3);
+      }
+      .difficulty-badge.medium {
+        background: rgba(210, 153, 34, 0.15);
+        color: #e3b341;
+        border: 1px solid rgba(210, 153, 34, 0.3);
+      }
+      .difficulty-badge.hard {
+        background: rgba(248, 81, 73, 0.15);
+        color: #ff7b72;
+        border: 1px solid rgba(248, 81, 73, 0.3);
+      }
+
+      h2 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.3;
+        margin-bottom: 20px;
+        color: white;
+      }
+
+      .skills-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 32px;
+      }
+      .skill-pill {
+        font-size: 0.8rem;
+        color: #a5b4fc;
+        background: rgba(99, 102, 241, 0.1);
+        padding: 4px 12px;
+        border-radius: 100px;
+        border: 1px solid rgba(99, 102, 241, 0.2);
+      }
+
+      /* --- Action Area (Timer & Buttons) --- */
+      .action-area {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid var(--border-subtle);
+        text-align: center;
+      }
+
+      .timer-display {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 3.5rem;
+        font-weight: 700;
+        color: var(--text-main);
+        font-variant-numeric: tabular-nums;
+        margin: 10px 0 20px 0;
+        text-shadow: 0 0 30px rgba(99, 102, 241, 0.1);
+      }
+
+      .timer-label {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 8px;
+        display: block;
+      }
+
+      /* --- Buttons --- */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 14px 24px;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 100%;
+        border: none;
+      }
+
+      .btn-primary {
+        background: var(--accent-primary);
+        color: white;
+        box-shadow: 0 4px 14px 0 var(--accent-glow);
+      }
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.1);
+        box-shadow: 0 6px 20px 0 var(--accent-glow);
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-main);
+        border: 1px solid var(--border-subtle);
+      }
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .controls-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .btn-icon {
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+      .btn-icon:hover {
+        color: var(--text-main);
+        border-color: var(--text-main);
+      }
+
+      /* --- Review Form (Hidden by default) --- */
+      .review-section {
+        margin-top: 24px;
+        border-top: 1px solid var(--border-subtle);
+        padding-top: 24px;
+      }
+
+      .toggles-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .toggle-card {
+        position: relative;
+        cursor: pointer;
+      }
+
+      .toggle-card input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+        height: 0;
+        width: 0;
+      }
+
+      .toggle-content {
+        background: rgba(255, 255, 255, 0.03);
+        border: 2px solid var(--border-subtle);
+        padding: 16px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+        height: 100%;
+      }
+
+      .toggle-content .icon {
+        font-size: 1.5rem;
+        filter: grayscale(1);
+        transition: 0.2s;
+      }
+      .toggle-content .text {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+
+      /* Checked States */
+      .toggle-card input:checked + .toggle-content {
+        background: rgba(99, 102, 241, 0.1);
+        border-color: var(--accent-primary);
+      }
+      .toggle-card input:checked + .toggle-content .text {
+        color: white;
+      }
+      .toggle-card input:checked + .toggle-content .icon {
+        filter: grayscale(0);
+        transform: scale(1.1);
+      }
+
+      /* Green specific for Solved */
+      #checkSolved:checked + .toggle-content {
+        background: rgba(46, 160, 67, 0.15);
+        border-color: var(--success);
+      }
+
+      .submit-success {
+        background: var(--success) !important;
+        pointer-events: none;
+      }
+
+      /* --- Footer --- */
+      .footer-info {
+        margin-top: 20px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
-    <!-- Background Ambient Glow -->
-    <div class="glow-bg"></div>
+    <header class="app-header">
+      <div class="logo">LeetGraph</div>
+      <div class="select-wrapper">
+        <select id="mode">
+          <option>NeetCode 150</option>
+        </select>
+      </div>
+    </header>
 
-    <div class="app-container">
-      <div class="header">
-        <div class="select-wrapper">
-          <select id="mode">
-            <option>NeetCode 150</option>
-          </select>
-          <!-- Custom Arrow Icon -->
-          <svg
-            class="select-icon"
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+    <!-- LOADING STATE -->
+    <div id="loading" class="main-card loading-state">
+      <div class="spinner"></div>
+      <p style="color: var(--text-muted)">Fetching next challenge...</p>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <div id="empty" class="main-card loading-state hidden">
+      <div style="font-size: 3rem; margin-bottom: 10px">🎉</div>
+      <h2>All caught up!</h2>
+      <p style="color: var(--text-muted)">
+        No unlocked problems available right now.
+      </p>
+    </div>
+
+    <!-- MAIN INTERFACE -->
+    <div id="cardContainer" class="main-card hidden fade-in">
+      <!-- Problem Details -->
+      <div class="problem-info">
+        <div class="meta-row">
+          <div class="track-badge">
+            <span id="trackIcon"></span>
+            <span id="trackName"></span>
+          </div>
+          <div id="diffBadge" class="difficulty-badge medium">Medium</div>
+        </div>
+
+        <h2 id="probTitle">Loading...</h2>
+
+        <div class="skills-row" id="skillTags">
+          <!-- Filled by JS -->
         </div>
       </div>
 
-      <!-- Loading State -->
-      <div id="loading" class="card center-content">
-        <div class="spinner"></div>
-        <h2>Fetching next challenge...</h2>
-      </div>
+      <!-- Action Area -->
+      <div class="action-area">
+        <!-- Timer View -->
+        <span class="timer-label" id="timerStatus">Ready to Start</span>
+        <div class="timer-display" id="timerDisplay">00:00</div>
+        <!-- Hidden input to store time for debugging/fallback -->
+        <input type="number" id="timeInput" style="display: none" value="0" />
 
-      <!-- Nothing Left State -->
-      <div id="empty" class="card center-content" style="display: none">
-        <div class="icon-circle">🎉</div>
-        <h2>All caught up!</h2>
-        <p>
-          No unlocked problems available. Time to rest or review your notes.
-        </p>
-      </div>
-
-      <!-- Active Problem Card -->
-      <div class="card" id="cardContainer" style="display: none">
-        <div class="problem-header">
-          <span id="diffBadge" class="badge medium">Medium</span>
-          <h2 id="probTitle">Loading...</h2>
-        </div>
-
-        <a id="probLink" href="#" class="btn-primary-outline">
-          <span>Open Problem</span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
-            />
-            <polyline points="15 3 21 3 21 9" />
-            <line x1="10" y1="14" x2="21" y2="3" />
-          </svg>
-        </a>
-
-        <div class="report-form">
-          <div class="form-title">Session Log</div>
-
-          <div class="input-wrapper">
-            <label for="timeInput">Time Spent (min)</label>
-            <input type="number" id="timeInput" placeholder="0" min="0" />
-          </div>
-
-          <div class="toggles-container">
-            <!-- Custom Checkbox Tile 1 -->
-            <label class="action-tile">
-              <input type="checkbox" id="checkSolved" />
-              <div class="tile-content">
-                <span class="tile-icon">✅</span>
-                <span class="tile-text">Solved</span>
-              </div>
-            </label>
-
-            <!-- Custom Checkbox Tile 2 -->
-            <label class="action-tile">
-              <input type="checkbox" id="checkSolution" />
-              <div class="tile-content">
-                <span class="tile-icon">👀</span>
-                <span class="tile-text">Viewed Hints</span>
-              </div>
-            </label>
-          </div>
-
-          <button class="btn-submit" id="submitBtn">
-            <span>Log & Next Problem</span>
+        <!-- Initial Start State -->
+        <div id="startControls">
+          <button id="btnOpen" class="btn btn-primary">
+            <span>Start & Open Problem</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -125,135 +457,345 @@
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path d="M5 12h14" />
-              <path d="m12 5 7 7-7 7" />
+              <path
+                d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+              />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
             </svg>
+          </button>
+        </div>
+
+        <!-- In-Progress Controls (Hidden initially) -->
+        <div id="activeControls" class="hidden">
+          <div class="controls-grid">
+            <button class="btn btn-secondary" id="toggleTimer">Pause</button>
+            <button class="btn btn-primary" id="btnFinish">Finish</button>
+          </div>
+          <div style="display: flex; justify-content: center; margin-top: 12px">
+            <button class="btn-icon" id="resetTimer" title="Reset Timer">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Review / Submit Section (Hidden initially) -->
+        <div id="reviewSection" class="review-section hidden fade-in">
+          <p
+            style="
+              margin-bottom: 12px;
+              color: var(--text-muted);
+              font-size: 0.9rem;
+            "
+          >
+            How did it go?
+          </p>
+
+          <div class="toggles-grid">
+            <label class="toggle-card">
+              <input type="checkbox" id="checkSolved" />
+              <div class="toggle-content">
+                <span class="icon">✅</span>
+                <span class="text">Solved</span>
+              </div>
+            </label>
+            <label class="toggle-card">
+              <input type="checkbox" id="checkSolution" />
+              <div class="toggle-content">
+                <span class="icon">👀</span>
+                <span class="text">Used Hints</span>
+              </div>
+            </label>
+          </div>
+
+          <button class="btn btn-primary" id="submitBtn">
+            Log Attempt & Next
           </button>
         </div>
       </div>
     </div>
 
-    <!-- KEEPING YOUR ORIGINAL SCRIPT LOGIC INTACT -->
-    <script>
-      const {invoke} = window.__TAURI__.core;
-      let currentProblemId = null;
+    <div class="footer-info">Time is tracked automatically. Good luck!</div>
 
-      const timeInput = document.getElementById("timeInput");
-      const submitBtn = document.getElementById("submitBtn");
-      // Start disabled until user enters a positive time
-      submitBtn.disabled = true;
-      timeInput.addEventListener("input", (e) => {
-        const val = parseFloat(e.target.value);
-        submitBtn.disabled = !(val > 0);
+    <script>
+      // Mock Invoke for testing in browser if Tauri not present
+      const {invoke} = window.__TAURI__
+        ? window.__TAURI__.core
+        : {
+            invoke: (cmd, args) => {
+              console.log("Mock Invoke:", cmd, args);
+              if (cmd === "get_next_problem") {
+                return new Promise((r) =>
+                  setTimeout(
+                    () =>
+                      r({
+                        id: 123,
+                        title: "Longest Consecutive Sequence",
+                        // Backend actually sends emojis in track_name:
+                        track_name: "✨ New Discovery",
+                        difficulty: "Medium",
+                        skills: ["Hash Table", "Union Find", "Array"],
+                        url: "https://leetcode.com/problems/longest-consecutive-sequence/",
+                      }),
+                    800
+                  )
+                );
+              }
+              if (cmd === "submit_attempt")
+                return new Promise((r) => setTimeout(r, 500));
+              if (cmd === "open_external_url") return Promise.resolve();
+            },
+          };
+
+      let currentProblemId = null;
+      let problemUrl = null;
+      let timerInterval;
+      let secondsElapsed = 0;
+      let isPaused = false;
+      let timerStarted = false;
+
+      // DOM Elements
+      const els = {
+        loading: document.getElementById("loading"),
+        empty: document.getElementById("empty"),
+        card: document.getElementById("cardContainer"),
+        title: document.getElementById("probTitle"),
+        trackName: document.getElementById("trackName"),
+        trackIcon: document.getElementById("trackIcon"),
+        diffBadge: document.getElementById("diffBadge"),
+        skills: document.getElementById("skillTags"),
+        timerDisplay: document.getElementById("timerDisplay"),
+        timerStatus: document.getElementById("timerStatus"),
+        startControls: document.getElementById("startControls"),
+        activeControls: document.getElementById("activeControls"),
+        reviewSection: document.getElementById("reviewSection"),
+        btnOpen: document.getElementById("btnOpen"),
+        btnFinish: document.getElementById("btnFinish"),
+        toggleTimer: document.getElementById("toggleTimer"),
+        resetTimer: document.getElementById("resetTimer"),
+        submitBtn: document.getElementById("submitBtn"),
+        checkSolved: document.getElementById("checkSolved"),
+        checkSolution: document.getElementById("checkSolution"),
+        timeInput: document.getElementById("timeInput"),
+      };
+
+      function formatTime(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60)
+          .toString()
+          .padStart(2, "0");
+        const s = (totalSeconds % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
+      }
+
+      function updateUIState(state) {
+        // States: 'ready', 'running', 'review'
+        if (state === "ready") {
+          els.startControls.classList.remove("hidden");
+          els.activeControls.classList.add("hidden");
+          els.reviewSection.classList.add("hidden");
+          els.timerStatus.innerText = "Ready to Start";
+          els.timerDisplay.style.opacity = "1";
+        } else if (state === "running") {
+          els.startControls.classList.add("hidden");
+          els.activeControls.classList.remove("hidden");
+          els.reviewSection.classList.add("hidden");
+          els.timerStatus.innerText = "Timer Running";
+          els.timerDisplay.style.color = "var(--text-main)";
+        } else if (state === "review") {
+          els.startControls.classList.add("hidden");
+          els.activeControls.classList.add("hidden");
+          els.reviewSection.classList.remove("hidden");
+          els.timerStatus.innerText = "Session Complete";
+          els.timerDisplay.style.color = "var(--success)";
+        }
+      }
+
+      function updateTimerDisplay() {
+        els.timerDisplay.innerText = formatTime(secondsElapsed);
+        els.timeInput.value = (secondsElapsed / 60).toFixed(2);
+      }
+
+      function startTimer() {
+        if (timerStarted && !isPaused) return;
+        timerStarted = true;
+        isPaused = false;
+
+        updateUIState("running");
+        els.toggleTimer.innerText = "Pause";
+
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+          if (!isPaused) {
+            secondsElapsed++;
+            updateTimerDisplay();
+          }
+        }, 1000);
+      }
+
+      function pauseTimer() {
+        if (!timerStarted) return;
+        isPaused = !isPaused;
+        if (isPaused) {
+          els.timerStatus.innerText = "Paused";
+          els.timerDisplay.style.opacity = "0.5";
+          els.toggleTimer.innerText = "Resume";
+        } else {
+          els.timerStatus.innerText = "Timer Running";
+          els.timerDisplay.style.opacity = "1";
+          els.toggleTimer.innerText = "Pause";
+        }
+      }
+
+      function stopTimerAndReview() {
+        clearInterval(timerInterval);
+        isPaused = true; // Stop counting
+        updateUIState("review");
+      }
+
+      function resetTimerLogic() {
+        secondsElapsed = 0;
+        isPaused = false;
+        timerStarted = false;
+        clearInterval(timerInterval);
+        updateTimerDisplay();
+        updateUIState("ready");
+      }
+
+      // Event Listeners
+      els.toggleTimer.addEventListener("click", pauseTimer);
+      els.resetTimer.addEventListener("click", resetTimerLogic);
+      els.btnFinish.addEventListener("click", stopTimerAndReview);
+
+      els.btnOpen.addEventListener("click", async () => {
+        if (problemUrl) {
+          try {
+            await invoke("open_external_url", {url: problemUrl});
+            startTimer();
+          } catch (err) {
+            alert("Failed to open URL: " + err);
+          }
+        }
       });
 
-      // Allow Enter to submit when a valid time is present
-      timeInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !submitBtn.disabled) {
-          submitLog();
+      els.submitBtn.addEventListener("click", async () => {
+        // Calculate minutes from internal counter for precision, fall back to input if needed
+        const minutes = secondsElapsed / 60.0;
+
+        if (minutes <= 0 && secondsElapsed < 5) {
+          alert("Timer must run for at least a few seconds.");
+          return;
+        }
+
+        if (!currentProblemId) {
+          alert("No problem selected.");
+          return;
+        }
+
+        const btnText = els.submitBtn.innerText;
+        els.submitBtn.innerText = "Saving...";
+        els.submitBtn.disabled = true;
+
+        const payload = {
+          problem_id: currentProblemId,
+          time_minutes: minutes,
+          solved: els.checkSolved.checked,
+          read_solution: els.checkSolution.checked,
+        };
+
+        try {
+          await invoke("submit_attempt", {log: payload});
+          els.submitBtn.classList.add("submit-success");
+          els.submitBtn.innerText = "Saved!";
+
+          setTimeout(() => {
+            els.submitBtn.disabled = false;
+            els.submitBtn.classList.remove("submit-success");
+            els.submitBtn.innerText = "Log Attempt & Next";
+            loadNextProblem();
+          }, 1000);
+        } catch (e) {
+          alert("Error saving: " + e);
+          els.submitBtn.disabled = false;
+          els.submitBtn.innerText = btnText;
         }
       });
 
       async function loadNextProblem() {
-        document.getElementById("loading").style.display = "flex"; // Changed to flex for centering
-        document.getElementById("cardContainer").style.display = "none";
-        document.getElementById("empty").style.display = "none";
+        els.loading.classList.remove("hidden");
+        els.card.classList.add("hidden");
+        els.empty.classList.add("hidden");
+
+        // Reset Logic
+        resetTimerLogic();
+        els.timerDisplay.style.color = "var(--text-main)";
+        currentProblemId = null; // Prevent stale submissions
+        els.checkSolved.checked = false;
+        els.checkSolution.checked = false;
 
         try {
           const problem = await invoke("get_next_problem");
 
           if (problem) {
             currentProblemId = problem.id;
-            document.getElementById(
-              "probTitle"
-            ).innerText = `${problem.id}. ${problem.title}`;
+            problemUrl = problem.url;
 
-            const linkBtn = document.getElementById("probLink");
-            linkBtn.dataset.url = problem.url;
-            linkBtn.removeAttribute("href");
+            els.title.innerText = `${problem.id}. ${problem.title}`;
 
-            const badge = document.getElementById("diffBadge");
-            badge.innerText = problem.difficulty;
-            badge.className = `badge ${problem.difficulty.toLowerCase()}`;
-
-            document.getElementById("timeInput").value = "";
-            document.getElementById("checkSolved").checked = false;
-            document.getElementById("checkSolution").checked = false;
-            // Ensure button is disabled until the user types time
-            submitBtn.disabled = true;
-
-            document.getElementById("loading").style.display = "none";
-            document.getElementById("cardContainer").style.display = "flex";
-            // Improve flow: focus the time input so user can type immediately
-            timeInput.focus();
-            timeInput.select();
-          } else {
-            document.getElementById("loading").style.display = "none";
-            document.getElementById("empty").style.display = "flex"; // Changed to flex
-          }
-        } catch (e) {
-          alert("Error loading problem: " + e);
-        }
-      }
-
-      async function submitLog() {
-        const timeVal = document.getElementById("timeInput").value;
-        const solved = document.getElementById("checkSolved").checked;
-        const readSol = document.getElementById("checkSolution").checked;
-        const btn = document.getElementById("submitBtn");
-        const btnText = btn.querySelector("span");
-
-        if (!timeVal) {
-          document.getElementById("timeInput").focus();
-          // Small shake animation could go here
-          return;
-        }
-
-        btnText.innerText = "Saving...";
-        btn.disabled = true;
-
-        const payload = {
-          problem_id: currentProblemId,
-          time_minutes: parseFloat(timeVal),
-          solved: solved,
-          read_solution: readSol,
-        };
-
-        try {
-          await invoke("submit_attempt", {log: payload});
-
-          btnText.innerText = "Saved!";
-          btn.classList.add("success");
-
-          setTimeout(() => {
-            btnText.innerText = "Log & Next Problem";
-            btn.classList.remove("success");
-            // Force re-disable until user provides a time for the new problem
-            btn.disabled = true;
-            loadNextProblem();
-          }, 800);
-        } catch (e) {
-          alert("Error saving: " + e);
-          btn.disabled = false;
-        }
-      }
-
-      submitBtn.addEventListener("click", submitLog);
-      loadNextProblem();
-
-      document
-        .getElementById("probLink")
-        .addEventListener("click", async (e) => {
-          e.preventDefault();
-          const url = e.target.closest("a").dataset.url;
-          if (url) {
-            try {
-              await invoke("open_external_url", {url: url});
-            } catch (err) {
-              alert("Failed to open browser: " + err);
+            // Backend sends text like "✨ New Discovery" or "🔥 Cram Mode".
+            // We parse this to put the emoji in the icon span.
+            const rawTrack = problem.track_name || "General";
+            // Check if string starts with an emoji (simple check)
+            const match = rawTrack.match(/^(\P{L}+)\s+(.*)$/u);
+            if (match) {
+              els.trackIcon.innerText = match[1];
+              els.trackName.innerText = match[2];
+            } else {
+              els.trackIcon.innerText = "⚡"; // Fallback icon
+              els.trackName.innerText = rawTrack;
             }
+
+            // Difficulty Badge
+            els.diffBadge.className = `difficulty-badge ${problem.difficulty.toLowerCase()}`;
+            els.diffBadge.innerText = problem.difficulty;
+
+            // Skills
+            els.skills.innerHTML = "";
+            if (problem.skills && problem.skills.length > 0) {
+              problem.skills.forEach((skill) => {
+                const s = document.createElement("span");
+                s.className = "skill-pill";
+                s.innerText = skill;
+                els.skills.appendChild(s);
+              });
+            }
+
+            els.loading.classList.add("hidden");
+            els.card.classList.remove("hidden");
+          } else {
+            els.loading.classList.add("hidden");
+            els.empty.classList.remove("hidden");
           }
-        });
+        } catch (e) {
+          console.error(e);
+          els.loading.innerHTML = `<p style="color:var(--danger)">Error: ${e}</p>`;
+        }
+      }
+
+      // Initial Load
+      loadNextProblem();
     </script>
   </body>
 </html>
