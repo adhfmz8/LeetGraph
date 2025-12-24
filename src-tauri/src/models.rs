@@ -81,6 +81,17 @@ pub struct JsonProblem {
     pub difficulty: String,
     pub category: String,
     pub url: String,
+    #[serde(default)]
+    pub alternatives: Vec<JsonAlternative>,
+}
+
+//  struct for the nested data
+#[derive(Deserialize)]
+pub struct JsonAlternative {
+    pub id: i64,
+    pub title: String,
+    pub difficulty: String,
+    pub url: String,
 }
 
 // Internal State Models

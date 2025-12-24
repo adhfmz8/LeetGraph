@@ -11,17 +11,27 @@ use rusqlite::Connection;
 
 pub fn get_next_problem(conn: &Connection) -> Result<Option<ProblemView>, String> {
     let now = Utc::now().timestamp();
-    let track_id = 1; // Default track
+    let track_id = 1;
     debug!("Requesting next problem...");
 
-    // 1. Review (Memory Protection)
-    if let Ok(Some(p)) = repository::find_due_review(conn, now) {
-        info!("Serving Due Review: {} (ID: {})", p.title, p.id);
-        return Ok(Some(p));
+    // 1. Review
+    if let Ok(Some(parent_problem)) = repository::find_due_review(conn, now) {
+        // ... (Keep existing Review logic regarding alternatives) ...
+        if let Ok(Some(alt_problem)) = repository::get_random_alternative(conn, parent_problem.id) {
+            info!(
+                "Serving Review Alternative: {} (ID: {}) for Parent: {} (ID: {})",
+                alt_problem.title, alt_problem.id, parent_problem.title, parent_problem.id
+            );
+            return Ok(Some(alt_problem));
+        }
+        info!(
+            "Serving Due Review: {} (ID: {})",
+            parent_problem.title, parent_problem.id
+        );
+        return Ok(Some(parent_problem));
     }
 
-    // 2. Discovery (New unlocked problems)
-    // We fetch unlocked skills first
+    // 2. Discovery
     let unlocked_skills = repository::get_unlocked_skills(conn).map_err(|e| e.to_string())?;
     debug!("Unlocked Skill IDs: {:?}", unlocked_skills);
 
@@ -31,7 +41,8 @@ pub fn get_next_problem(conn: &Connection) -> Result<Option<ProblemView>, String
     }
 
     // 3. Cram (Grind lowest mastery)
-    if let Ok(Some(p)) = repository::find_cram_problem(conn, track_id) {
+    // PASS THE UNLOCKED SKILLS HERE
+    if let Ok(Some(p)) = repository::find_cram_problem(conn, track_id, &unlocked_skills) {
         warn!(
             "No new content/reviews available. Entering Cram Mode: {} (ID: {})",
             p.title, p.id
@@ -45,14 +56,37 @@ pub fn get_next_problem(conn: &Connection) -> Result<Option<ProblemView>, String
 
 pub fn process_attempt(conn: &Connection, log: &AttemptLog) -> Result<(), String> {
     let now = Utc::now().timestamp();
-    info!("Processing attempt for Problem ID: {}", log.problem_id);
+    info!("Processing attempt for Submitted ID: {}", log.problem_id);
 
-    let (difficulty, skill_ids) =
-        repository::get_problem_metadata(conn, log.problem_id).map_err(|e| e.to_string())?;
-    let prior_attempts =
-        repository::get_attempt_count(conn, log.problem_id).map_err(|e| e.to_string())?;
+    // 1. Resolve Parent (For SM-2 / Memory protection)
+    // We still want to schedule the review based on the "Concept" (Parent)
+    let (parent_id, _is_alternative) =
+        repository::resolve_parent_id(conn, log.problem_id).map_err(|e| e.to_string())?;
 
-    // 1. Log Attempt
+    // 2. Get Metadata (FIXED)
+    // We try to fetch skills for the SPECIFIC problem you solved (e.g., Two Sum).
+    // If the specific problem isn't in the problems table (it's a pure alternative),
+    // we fallback to the Parent's skills.
+    let (difficulty, mut skill_ids) = repository::get_problem_metadata(conn, log.problem_id)
+        .unwrap_or_else(|_| {
+            // Fallback: Use parent metadata if specific lookup fails
+            repository::get_problem_metadata(conn, parent_id)
+                .unwrap_or((Difficulty::Medium, vec![]))
+        });
+
+    // Edge Case: If the specific lookup worked but returned no skills (weird data), try parent
+    if skill_ids.is_empty() {
+        if let Ok((_, parent_skills)) = repository::get_problem_metadata(conn, parent_id) {
+            skill_ids = parent_skills;
+        }
+    }
+
+    debug!(
+        "Crediting Skills: {:?} for Problem ID: {}",
+        skill_ids, log.problem_id
+    );
+
+    // 3. Log Attempt
     repository::log_attempt(
         conn,
         log.problem_id,
@@ -63,11 +97,23 @@ pub fn process_attempt(conn: &Connection, log: &AttemptLog) -> Result<(), String
     )
     .map_err(|e| e.to_string())?;
 
-    // 2. Update Repetition State (SM-2 Logic)
-    update_repetition_logic(conn, log, difficulty, prior_attempts, now)?;
+    // 4. Update Repetition State (SM-2 Logic) -> ON PARENT ID
+    // Keep this on Parent so you don't memorize duplicates
+    let prior_attempts_parent =
+        repository::get_attempt_count(conn, parent_id).map_err(|e| e.to_string())?;
 
-    // 3. Update Skill Mastery
-    update_mastery_logic(conn, log, difficulty, &skill_ids)?;
+    let logic_log = AttemptLog {
+        problem_id: parent_id,
+        time_minutes: log.time_minutes,
+        solved: log.solved,
+        read_solution: log.read_solution,
+    };
+
+    update_repetition_logic(conn, &logic_log, difficulty, prior_attempts_parent, now)?;
+
+    // 5. Update Skill Mastery -> ON SPECIFIC SKILLS (FIXED)
+    // Now this will update "Arrays" when you solve "Two Sum"
+    update_mastery_logic(conn, &logic_log, difficulty, &skill_ids)?;
 
     Ok(())
 }
@@ -88,7 +134,7 @@ fn update_repetition_logic(
     let old_ease = state.ease_factor;
     let old_interval = state.interval_days;
 
-    let is_new = prior_attempts <= 0; // Since we just logged one, current count is 1+; check is based on *before* this attempt
+    let is_new = prior_attempts <= 1; // Since we just logged one, current count is 1+; check is based on *before* this attempt
     let expected_time = match difficulty {
         Difficulty::Easy => EXPECTED_TIME_EASY,
         Difficulty::Medium => EXPECTED_TIME_MEDIUM,

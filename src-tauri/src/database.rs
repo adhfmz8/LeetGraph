@@ -24,6 +24,14 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             url TEXT,
             difficulty TEXT CHECK (difficulty IN ('Easy','Medium','Hard'))
         );
+        CREATE TABLE IF NOT EXISTS alternatives (
+            id INTEGER PRIMARY KEY,
+            parent_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            url TEXT,
+            difficulty TEXT,
+            FOREIGN KEY(parent_id) REFERENCES problems(id)
+        );
         CREATE TABLE IF NOT EXISTS problem_skills (
             problem_id INTEGER,
             skill_id INTEGER,
@@ -132,9 +140,8 @@ fn seed_data(conn: &Connection) -> Result<()> {
         [],
     )?;
 
-    // 4. Problems
-    // Note: This relies on the file strictly existing in src/data/
-    let data = include_str!("data/neetcode_150.json");
+    // 4. Problems & Alternatives
+    let data = include_str!("data/neetcode_150_alts.json");
     let problems: Vec<JsonProblem> =
         serde_json::from_str(data).expect("Error parsing problems JSON");
 
@@ -145,13 +152,22 @@ fn seed_data(conn: &Connection) -> Result<()> {
     let mut tp_stmt =
         conn.prepare("INSERT OR REPLACE INTO track_problems (track_id, problem_id) VALUES (1, ?)")?;
 
+    // Statement for alternatives
+    let mut alt_stmt = conn.prepare(
+        "INSERT OR REPLACE INTO alternatives (id, parent_id, title, difficulty, url) VALUES (?, ?, ?, ?, ?)"
+    )?;
+
     for p in problems {
         let slug = p.title.to_lowercase().replace(" ", "-");
         p_stmt.execute(params![p.id, slug, p.title, p.difficulty, p.url])?;
         ps_stmt.execute(params![p.id, p.category])?;
         tp_stmt.execute(params![p.id])?;
-    }
 
+        // Insert Alternatives
+        for alt in p.alternatives {
+            alt_stmt.execute(params![alt.id, p.id, alt.title, alt.difficulty, alt.url])?;
+        }
+    }
     // 5. Init Skill State
     conn.execute(
         "INSERT OR IGNORE INTO skill_state (skill_id) SELECT id FROM skills",

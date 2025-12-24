@@ -28,6 +28,46 @@ pub fn get_skill_state(conn: &Connection, skill_id: i64) -> Result<SkillMasteryS
     })
 }
 
+/// Checks if a problem ID is an alternative.
+/// Returns (parent_id, is_alternative).
+/// If it's a normal problem, returns (id, false).
+pub fn resolve_parent_id(conn: &Connection, problem_id: i64) -> Result<(i64, bool)> {
+    let parent_id: Option<i64> = conn
+        .query_row(
+            "SELECT parent_id FROM alternatives WHERE id = ?",
+            [problem_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    match parent_id {
+        Some(pid) => Ok((pid, true)),
+        None => Ok((problem_id, false)),
+    }
+}
+
+/// Tries to find a random alternative for a given parent problem ID.
+pub fn get_random_alternative(conn: &Connection, parent_id: i64) -> Result<Option<ProblemView>> {
+    conn.query_row(
+        "SELECT id, title, difficulty, url 
+         FROM alternatives 
+         WHERE parent_id = ? 
+         ORDER BY RANDOM() 
+         LIMIT 1",
+        [parent_id],
+        |row| {
+            Ok(ProblemView {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                difficulty: row.get(2)?,
+                url: row.get(3)?,
+                track_name: "Concept Review".to_string(), // UI indicator
+            })
+        },
+    )
+    .optional()
+}
+
 /// Updates the mastery state for a skill.
 pub fn update_skill_state(conn: &Connection, state: &SkillMasteryState) -> Result<()> {
     conn.execute(
@@ -191,8 +231,8 @@ pub fn find_new_problem_for_skills(
         return Ok(None);
     }
 
-    // Dynamic SQL generation for the IN clause
     let placeholders = skill_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+
     let sql = format!(
         "SELECT p.id, p.title, p.difficulty, p.url
          FROM problems p
@@ -200,7 +240,18 @@ pub fn find_new_problem_for_skills(
          JOIN problem_skills ps ON p.id = ps.problem_id
          WHERE tp.track_id = ?
          AND ps.skill_id IN ({})
+         -- Exclude if the problem itself is tracked
          AND p.id NOT IN (SELECT problem_id FROM problem_state)
+         -- Exclude if the problem is an alternative to a tracked parent
+         AND p.id NOT IN (
+            SELECT id FROM alternatives 
+            WHERE parent_id IN (SELECT problem_id FROM problem_state)
+         )
+         -- Exclude if the problem IS the parent of a tracked alternative (Bi-directional safety)
+         AND p.id NOT IN (
+            SELECT parent_id FROM alternatives
+            WHERE id IN (SELECT problem_id FROM attempts) -- Heuristic: if we attempted an alt, parent is done
+         )
          GROUP BY p.id
          ORDER BY
             CASE p.difficulty
@@ -232,26 +283,45 @@ pub fn find_new_problem_for_skills(
     .optional()
 }
 
-pub fn find_cram_problem(conn: &Connection, track_id: i64) -> Result<Option<ProblemView>> {
-    conn.query_row(
+pub fn find_cram_problem(
+    conn: &Connection,
+    track_id: i64,
+    skill_ids: &[i64],
+) -> Result<Option<ProblemView>> {
+    if skill_ids.is_empty() {
+        return Ok(None);
+    }
+
+    // Dynamic SQL for IN clause
+    let placeholders = skill_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+
+    let sql = format!(
         "SELECT p.id, p.title, p.difficulty, p.url
          FROM problems p
          JOIN track_problems tp ON p.id = tp.problem_id
          JOIN problem_skills ps ON p.id = ps.problem_id
          JOIN skill_state ss ON ps.skill_id = ss.skill_id
          WHERE tp.track_id = ?
-         ORDER BY ss.mastery ASC
+         AND ps.skill_id IN ({}) -- Enforce Unlocked Skills
+         ORDER BY ss.mastery ASC, RANDOM()
          LIMIT 1",
-        [track_id],
-        |row| {
-            Ok(ProblemView {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                difficulty: row.get(2)?,
-                url: row.get(3)?,
-                track_name: "Cram Mode".to_string(),
-            })
-        },
-    )
+        placeholders
+    );
+
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    params.push(Box::new(track_id));
+    for id in skill_ids {
+        params.push(Box::new(*id));
+    }
+
+    conn.query_row(&sql, rusqlite::params_from_iter(params.iter()), |row| {
+        Ok(ProblemView {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            difficulty: row.get(2)?,
+            url: row.get(3)?,
+            track_name: "Cram Mode (Grind)".to_string(),
+        })
+    })
     .optional()
 }
