@@ -138,6 +138,22 @@
       const {invoke} = window.__TAURI__.core;
       let currentProblemId = null;
 
+      const timeInput = document.getElementById("timeInput");
+      const submitBtn = document.getElementById("submitBtn");
+      // Start disabled until user enters a positive time
+      submitBtn.disabled = true;
+      timeInput.addEventListener("input", (e) => {
+        const val = parseFloat(e.target.value);
+        submitBtn.disabled = !(val > 0);
+      });
+
+      // Allow Enter to submit when a valid time is present
+      timeInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !submitBtn.disabled) {
+          submitLog();
+        }
+      });
+
       async function loadNextProblem() {
         document.getElementById("loading").style.display = "flex"; // Changed to flex for centering
         document.getElementById("cardContainer").style.display = "none";
@@ -163,9 +179,14 @@
             document.getElementById("timeInput").value = "";
             document.getElementById("checkSolved").checked = false;
             document.getElementById("checkSolution").checked = false;
+            // Ensure button is disabled until the user types time
+            submitBtn.disabled = true;
 
             document.getElementById("loading").style.display = "none";
             document.getElementById("cardContainer").style.display = "flex";
+            // Improve flow: focus the time input so user can type immediately
+            timeInput.focus();
+            timeInput.select();
           } else {
             document.getElementById("loading").style.display = "none";
             document.getElementById("empty").style.display = "flex"; // Changed to flex
@@ -207,7 +228,8 @@
           setTimeout(() => {
             btnText.innerText = "Log & Next Problem";
             btn.classList.remove("success");
-            btn.disabled = false;
+            // Force re-disable until user provides a time for the new problem
+            btn.disabled = true;
             loadNextProblem();
           }, 800);
         } catch (e) {
@@ -216,7 +238,7 @@
         }
       }
 
-      document.getElementById("submitBtn").addEventListener("click", submitLog);
+      submitBtn.addEventListener("click", submitLog);
       loadNextProblem();
 
       document
