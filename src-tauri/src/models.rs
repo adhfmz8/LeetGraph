@@ -72,6 +72,8 @@ pub struct AttemptLog {
     pub time_minutes: f64,
     pub solved: bool,
     pub read_solution: bool,
+    #[serde(default)]
+    pub revealed_skills: bool,
 }
 
 // Used for seeding

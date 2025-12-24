@@ -107,6 +107,8 @@ pub fn process_attempt(conn: &Connection, log: &AttemptLog) -> Result<(), String
         time_minutes: log.time_minutes,
         solved: log.solved,
         read_solution: log.read_solution,
+        // preserve whether the user revealed skills on the original attempt
+        revealed_skills: log.revealed_skills,
     };
 
     update_repetition_logic(conn, &logic_log, difficulty, prior_attempts_parent, now)?;
@@ -240,10 +242,15 @@ fn update_mastery_logic(
         }
     };
 
-    let delta = ALPHA * diff_mult * perf_mult;
+    // --- NEW: SCAFFOLDING PENALTY ---
+    // If they needed to see the tags to solve it, they haven't fully mastered the pattern recognition.
+    // We reduce the learning alpha by 50% for this attempt.
+    let scaffolding_mult = if log.revealed_skills { 0.5 } else { 1.0 };
+
+    let delta = ALPHA * diff_mult * perf_mult * scaffolding_mult;
     debug!(
-        "[Mastery Input] Delta calculated: {:.4} (based on perf_mult: {:.2})",
-        delta, perf_mult
+        "[Mastery Input] Delta: {:.4} (Scaffold Penalty: {}) (based on perf_mult: {:.2})",
+        delta, scaffolding_mult, perf_mult
     );
 
     for &sid in skill_ids {

@@ -164,7 +164,6 @@
         gap: 6px;
       }
 
-      /* Ensure the icon stands out slightly */
       .track-badge #trackIcon {
         font-size: 0.9rem;
         line-height: 1;
@@ -205,7 +204,8 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 32px;
+        /* UPDATED: Removed margin-bottom from here to fix centering issue */
+        margin-bottom: 0;
       }
       .skill-pill {
         font-size: 0.8rem;
@@ -305,7 +305,7 @@
         border-color: var(--text-main);
       }
 
-      /* --- Review Form (Hidden by default) --- */
+      /* --- Review Form --- */
       .review-section {
         margin-top: 24px;
         border-top: 1px solid var(--border-subtle);
@@ -357,7 +357,6 @@
         color: var(--text-muted);
       }
 
-      /* Checked States */
       .toggle-card input:checked + .toggle-content {
         background: rgba(99, 102, 241, 0.1);
         border-color: var(--accent-primary);
@@ -370,7 +369,6 @@
         transform: scale(1.1);
       }
 
-      /* Green specific for Solved */
       #checkSolved:checked + .toggle-content {
         background: rgba(46, 160, 67, 0.15);
         border-color: var(--success);
@@ -379,6 +377,53 @@
       .submit-success {
         background: var(--success) !important;
         pointer-events: none;
+      }
+
+      /* --- Anti-Priming (Hidden Skills) --- */
+      .skills-container {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+        transition: all 0.2s;
+        /* UPDATED: Added margin here so it doesn't mess up vertical centering of the button */
+        margin-bottom: 32px;
+      }
+
+      .skills-blur {
+        filter: blur(6px);
+        opacity: 0.6;
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .skills-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      }
+
+      .reveal-btn {
+        background: rgba(15, 17, 21, 0.8);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        /* UPDATED: Smaller font and no-wrap to prevent two lines */
+        font-size: 0.65rem;
+        white-space: nowrap;
+        padding: 4px 10px;
+        border-radius: 20px;
+        backdrop-filter: blur(4px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      }
+
+      .skills-container:hover .reveal-btn {
+        color: white;
+        border-color: var(--accent-primary);
       }
 
       /* --- Footer --- */
@@ -417,7 +462,6 @@
 
     <!-- MAIN INTERFACE -->
     <div id="cardContainer" class="main-card hidden fade-in">
-      <!-- Problem Details -->
       <div class="problem-info">
         <div class="meta-row">
           <div class="track-badge">
@@ -429,20 +473,25 @@
 
         <h2 id="probTitle">Loading...</h2>
 
-        <div class="skills-row" id="skillTags">
-          <!-- Filled by JS -->
+        <div
+          id="skillsWrapper"
+          class="skills-container"
+          title="Click to reveal Pattern Hints"
+        >
+          <div class="skills-overlay" id="skillsOverlay">
+            <span class="reveal-btn">Reveal Patterns</span>
+          </div>
+          <div class="skills-row skills-blur" id="skillTags">
+            <!-- Filled by JS -->
+          </div>
         </div>
       </div>
 
-      <!-- Action Area -->
       <div class="action-area">
-        <!-- Timer View -->
         <span class="timer-label" id="timerStatus">Ready to Start</span>
         <div class="timer-display" id="timerDisplay">00:00</div>
-        <!-- Hidden input to store time for debugging/fallback -->
         <input type="number" id="timeInput" style="display: none" value="0" />
 
-        <!-- Initial Start State -->
         <div id="startControls">
           <button id="btnOpen" class="btn btn-primary">
             <span>Start & Open Problem</span>
@@ -466,7 +515,6 @@
           </button>
         </div>
 
-        <!-- In-Progress Controls (Hidden initially) -->
         <div id="activeControls" class="hidden">
           <div class="controls-grid">
             <button class="btn btn-secondary" id="toggleTimer">Pause</button>
@@ -492,7 +540,6 @@
           </div>
         </div>
 
-        <!-- Review / Submit Section (Hidden initially) -->
         <div id="reviewSection" class="review-section hidden fade-in">
           <p
             style="
@@ -531,12 +578,11 @@
     <div class="footer-info">Time is tracked automatically. Good luck!</div>
 
     <script>
-      // Mock Invoke for testing in browser if Tauri not present
+      // Mock Invoke for testing
       const {invoke} = window.__TAURI__
         ? window.__TAURI__.core
         : {
             invoke: (cmd, args) => {
-              console.log("Mock Invoke:", cmd, args);
               if (cmd === "get_next_problem") {
                 return new Promise((r) =>
                   setTimeout(
@@ -544,7 +590,6 @@
                       r({
                         id: 123,
                         title: "Longest Consecutive Sequence",
-                        // Backend actually sends emojis in track_name:
                         track_name: "✨ New Discovery",
                         difficulty: "Medium",
                         skills: ["Hash Table", "Union Find", "Array"],
@@ -566,8 +611,8 @@
       let secondsElapsed = 0;
       let isPaused = false;
       let timerStarted = false;
+      let skillsRevealed = false;
 
-      // DOM Elements
       const els = {
         loading: document.getElementById("loading"),
         empty: document.getElementById("empty"),
@@ -577,6 +622,8 @@
         trackIcon: document.getElementById("trackIcon"),
         diffBadge: document.getElementById("diffBadge"),
         skills: document.getElementById("skillTags"),
+        skillsWrapper: document.getElementById("skillsWrapper"),
+        skillsOverlay: document.getElementById("skillsOverlay"),
         timerDisplay: document.getElementById("timerDisplay"),
         timerStatus: document.getElementById("timerStatus"),
         startControls: document.getElementById("startControls"),
@@ -601,7 +648,6 @@
       }
 
       function updateUIState(state) {
-        // States: 'ready', 'running', 'review'
         if (state === "ready") {
           els.startControls.classList.remove("hidden");
           els.activeControls.classList.add("hidden");
@@ -628,14 +674,23 @@
         els.timeInput.value = (secondsElapsed / 60).toFixed(2);
       }
 
+      function revealSkills() {
+        if (skillsRevealed) return;
+        skillsRevealed = true;
+        els.skills.classList.remove("skills-blur");
+        els.skillsOverlay.classList.add("hidden");
+      }
+
+      if (els.skillsWrapper) {
+        els.skillsWrapper.addEventListener("click", revealSkills);
+      }
+
       function startTimer() {
         if (timerStarted && !isPaused) return;
         timerStarted = true;
         isPaused = false;
-
         updateUIState("running");
         els.toggleTimer.innerText = "Pause";
-
         clearInterval(timerInterval);
         timerInterval = setInterval(() => {
           if (!isPaused) {
@@ -661,8 +716,10 @@
 
       function stopTimerAndReview() {
         clearInterval(timerInterval);
-        isPaused = true; // Stop counting
+        isPaused = true;
         updateUIState("review");
+        els.skills.classList.remove("skills-blur");
+        if (els.skillsOverlay) els.skillsOverlay.classList.add("hidden");
       }
 
       function resetTimerLogic() {
@@ -674,7 +731,6 @@
         updateUIState("ready");
       }
 
-      // Event Listeners
       els.toggleTimer.addEventListener("click", pauseTimer);
       els.resetTimer.addEventListener("click", resetTimerLogic);
       els.btnFinish.addEventListener("click", stopTimerAndReview);
@@ -691,35 +747,29 @@
       });
 
       els.submitBtn.addEventListener("click", async () => {
-        // Calculate minutes from internal counter for precision, fall back to input if needed
         const minutes = secondsElapsed / 60.0;
-
         if (minutes <= 0 && secondsElapsed < 5) {
           alert("Timer must run for at least a few seconds.");
           return;
         }
-
         if (!currentProblemId) {
           alert("No problem selected.");
           return;
         }
-
         const btnText = els.submitBtn.innerText;
         els.submitBtn.innerText = "Saving...";
         els.submitBtn.disabled = true;
-
         const payload = {
           problem_id: currentProblemId,
           time_minutes: minutes,
           solved: els.checkSolved.checked,
           read_solution: els.checkSolution.checked,
+          revealed_skills: skillsRevealed,
         };
-
         try {
           await invoke("submit_attempt", {log: payload});
           els.submitBtn.classList.add("submit-success");
           els.submitBtn.innerText = "Saved!";
-
           setTimeout(() => {
             els.submitBtn.disabled = false;
             els.submitBtn.classList.remove("submit-success");
@@ -737,41 +787,32 @@
         els.loading.classList.remove("hidden");
         els.card.classList.add("hidden");
         els.empty.classList.add("hidden");
-
-        // Reset Logic
         resetTimerLogic();
         els.timerDisplay.style.color = "var(--text-main)";
-        currentProblemId = null; // Prevent stale submissions
+        currentProblemId = null;
         els.checkSolved.checked = false;
         els.checkSolution.checked = false;
+        skillsRevealed = false;
+        els.skills.classList.add("skills-blur");
+        if (els.skillsOverlay) els.skillsOverlay.classList.remove("hidden");
 
         try {
           const problem = await invoke("get_next_problem");
-
           if (problem) {
             currentProblemId = problem.id;
             problemUrl = problem.url;
-
             els.title.innerText = `${problem.id}. ${problem.title}`;
-
-            // Backend sends text like "✨ New Discovery" or "🔥 Cram Mode".
-            // We parse this to put the emoji in the icon span.
             const rawTrack = problem.track_name || "General";
-            // Check if string starts with an emoji (simple check)
             const match = rawTrack.match(/^(\P{L}+)\s+(.*)$/u);
             if (match) {
               els.trackIcon.innerText = match[1];
               els.trackName.innerText = match[2];
             } else {
-              els.trackIcon.innerText = "⚡"; // Fallback icon
+              els.trackIcon.innerText = "⚡";
               els.trackName.innerText = rawTrack;
             }
-
-            // Difficulty Badge
             els.diffBadge.className = `difficulty-badge ${problem.difficulty.toLowerCase()}`;
             els.diffBadge.innerText = problem.difficulty;
-
-            // Skills
             els.skills.innerHTML = "";
             if (problem.skills && problem.skills.length > 0) {
               problem.skills.forEach((skill) => {
@@ -780,8 +821,11 @@
                 s.innerText = skill;
                 els.skills.appendChild(s);
               });
+            } else {
+              if (els.skillsOverlay) els.skillsOverlay.classList.add("hidden");
+              els.skills.classList.remove("skills-blur");
+              skillsRevealed = false;
             }
-
             els.loading.classList.add("hidden");
             els.card.classList.remove("hidden");
           } else {
@@ -793,8 +837,6 @@
           els.loading.innerHTML = `<p style="color:var(--danger)">Error: ${e}</p>`;
         }
       }
-
-      // Initial Load
       loadNextProblem();
     </script>
   </body>
